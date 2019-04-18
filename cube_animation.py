@@ -58,7 +58,7 @@ def animate_cube_height(x, y, z, sf, ef):
     if z < 0: # do a positive relative offset if a negative z passed
         rawz = math.exp(obj.scale[2]) - z
         z = math.log(rawz)
-    color = colors[min(math.floor(1.0*z), 7)] + [1.0]
+    color = colors[min(math.floor(z + 1), 7)] + [1.0]
     obj.scale[2] = z
     obj.location[2] = 0.9*z/2
     bsdf_shader.default_value = color
@@ -66,6 +66,16 @@ def animate_cube_height(x, y, z, sf, ef):
     obj.keyframe_insert(data_path="scale", frame=ef, index=2)
     obj.keyframe_insert(data_path="location", frame=ef, index=2)
     bsdf_shader.keyframe_insert(data_path='default_value', frame=ef)
+
+def animate_highlighters(mats, sf, ef):
+    for i, mat in enumerate(mats):
+        _, _, px, py = mat
+        print("pxpy %d %d" % (px, py))
+        cube = bpy.data.objects["Cube_%d_%d" % (px, py)]
+        ob = bpy.data.objects["hl.%03d" % i]
+        ob.keyframe_insert(data_path="location", frame=sf)
+        ob.location = (px, py, cube.scale[2])
+        ob.keyframe_insert(data_path="location", frame=ef)
 
 def delete_all_scene():
     # Clear the scene
@@ -99,16 +109,6 @@ def init_scene(x, y):
 #             for j, num_materials in enumerate(row):
 
 #
-delete_all_scene()
-
-sx = 8
-sy = 8
-t1 = time.perf_counter()
-init_scene(sx, sy)
-t2 = time.perf_counter()
-print("Time to create: %f" % (t2 - t1))
-
-anim_gens = np.load("/home/pboone/workspace/pm-blender/animation.npy")
 
 def dict_count(l):
     result_dict = {}
@@ -119,11 +119,41 @@ def dict_count(l):
             result_dict[a] = 1
     return result_dict
 
+def remove_all_keyframes():
+    t1 = time.perf_counter()
+    bpy.context.scene.frame_set(1)
+    for ob in bpy.data.collections['cubes'].objects[:]:
+        ob.animation_data_clear()
+        ob.scale[2] = 0.0
+        ob.location[2] = 0.0
+
+    for m in bpy.data.materials:
+        if m.name.startswith("mat1.") or m.name.startswith("mat1_"):
+            bsdf_shader = m.node_tree.nodes.get("Principled BSDF").inputs[0]
+            bsdf_shader.keyframe_delete(data_path='default_value')
+            # m.animation_data_clear()
+
+delete_all_scene()
+sx = 8
+sy = 8
+t1 = time.perf_counter()
+init_scene(sx, sy)
+t2 = time.perf_counter()
+print("Time to create: %f" % (t2 - t1))
+
+anim_gens = np.load("/home/pboone/workspace/pm-blender/animation.npy")
+
+gf = 30
+
 for i, gen in enumerate(anim_gens):
-    mats = [(mat[0] % sx, mat[1] % sy) for mat in gen]
-    mat_moves = dict_count(mats)
+    # bpy.context.scene.frame_set(i*gf)
+
+    mats = [(mat[0] % sx, mat[1] % sy, mat[2] % sx, mat[3] % sy) for mat in gen]
+    animate_highlighters(mats, i*gf, i*gf + 10)
+
+    mat_moves = dict_count([(m[0],m[1]) for m in mats])
     for (x,y), z in mat_moves.items():
-        animate_cube_height(x, y, -z, i * 10, (i + 1) * 10)
+        animate_cube_height(x, y, -z, i*gf + 10, i*gf + gf)
 
 #
 # for i in range(36):
