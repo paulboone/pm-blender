@@ -56,7 +56,8 @@ def animate_cube_height(x, y, z, sf, ef):
     bsdf_shader.keyframe_insert(data_path='default_value', frame=sf)
 
     if z < 0: # do a positive relative offset if a negative z passed
-        z = obj.scale[2] - z
+        rawz = math.exp(obj.scale[2]) - z
+        z = math.log(rawz)
     color = colors[min(math.floor(1.0*z), 7)] + [1.0]
     obj.scale[2] = z
     obj.location[2] = 0.9*z/2
