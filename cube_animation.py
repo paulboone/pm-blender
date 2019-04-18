@@ -55,8 +55,8 @@ def animate_cube_height(x, y, z, sf, ef):
     obj.keyframe_insert(data_path="location", frame=sf, index=2)
     bsdf_shader.keyframe_insert(data_path='default_value', frame=sf)
 
-    if z == -1:
-        z = obj.scale[2] + 1
+    if z < 0: # do a positive relative offset if a negative z passed
+        z = obj.scale[2] - z
     color = colors[min(math.floor(1.0*z), 7)] + [1.0]
     obj.scale[2] = z
     obj.location[2] = 0.9*z/2
@@ -100,18 +100,29 @@ def init_scene(x, y):
 #
 delete_all_scene()
 
+sx = 8
+sy = 8
 t1 = time.perf_counter()
-init_scene(8,8)
+init_scene(sx, sy)
 t2 = time.perf_counter()
 print("Time to create: %f" % (t2 - t1))
 
 anim_gens = np.load("/home/pboone/workspace/pm-blender/animation.npy")
 
+def dict_count(l):
+    result_dict = {}
+    for a in l:
+        if a in result_dict:
+            result_dict[a] += 1
+        else:
+            result_dict[a] = 1
+    return result_dict
+
 for i, gen in enumerate(anim_gens):
-    for mats in gen:
-        x, y, px, py = mats
-        if x < 8 and y < 8:
-            animate_cube_height(x, y, -1, i * 10, (i + 1) * 10)
+    mats = [(mat[0] % sx, mat[1] % sy) for mat in gen]
+    mat_moves = dict_count(mats)
+    for (x,y), z in mat_moves.items():
+        animate_cube_height(x, y, -z, i * 10, (i + 1) * 10)
 
 #
 # for i in range(36):
