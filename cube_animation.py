@@ -74,7 +74,7 @@ def animate_highlighters(mats, sf, ef):
         cube = bpy.data.objects["Cube_%d_%d" % (px, py)]
         ob = bpy.data.objects["hl.%03d" % i]
         ob.keyframe_insert(data_path="location", frame=sf)
-        ob.location = (px, py, cube.scale[2])
+        ob.location = (px, py, cube.scale[2] * 0.9)
         ob.keyframe_insert(data_path="location", frame=ef)
 
 def delete_all_scene():
@@ -119,6 +119,12 @@ def dict_count(l):
             result_dict[a] = 1
     return result_dict
 
+def reset_highlighters():
+    for i in range(10):
+        ob = bpy.data.objects["hl.%03d" % i]
+        ob.animation_data_clear()
+        ob.location = (-1.0, -1.0, 0.0)
+
 def remove_all_keyframes():
     t1 = time.perf_counter()
     bpy.context.scene.frame_set(1)
@@ -134,6 +140,7 @@ def remove_all_keyframes():
             # m.animation_data_clear()
 
 delete_all_scene()
+reset_highlighters()
 sx = 8
 sy = 8
 t1 = time.perf_counter()
@@ -147,17 +154,10 @@ gf = 30
 
 for i, gen in enumerate(anim_gens):
     # bpy.context.scene.frame_set(i*gf)
-
+    j = i + 1
     mats = [(mat[0] % sx, mat[1] % sy, mat[2] % sx, mat[3] % sy) for mat in gen]
-    animate_highlighters(mats, i*gf, i*gf + 10)
+    animate_highlighters(mats, j*gf, j*gf + 10)
 
     mat_moves = dict_count([(m[0],m[1]) for m in mats])
     for (x,y), z in mat_moves.items():
-        animate_cube_height(x, y, -z, i*gf + 10, i*gf + gf)
-
-#
-# for i in range(36):
-#     animate_cube_height(i + 2, i, 4, 20, 30)
-#
-# for i in range(36):
-#     animate_cube_height(i + 2, i, 6, 30, 40)
+        animate_cube_height(x, y, -z, j*gf + 10, j*gf + gf)
