@@ -47,7 +47,9 @@ def init_cube(x, y):
     # deselect
     ob.select_set(state=False)
 
-def animate_cube_height(x, y, z, sf, ef):
+def animate_cube_height(x, y, z, sequence_start, offset, alength):
+    sf = sequence_start + offset
+    ef = sf + alength
     obj = bpy.data.objects["Cube_%d_%d" % (x, y)]
     m = bpy.data.materials["mat1_%d_%d" % (x, y)]
     bsdf_shader = m.node_tree.nodes.get("Principled BSDF").inputs[0]
@@ -67,7 +69,9 @@ def animate_cube_height(x, y, z, sf, ef):
     obj.keyframe_insert(data_path="location", frame=ef, index=2)
     bsdf_shader.keyframe_insert(data_path='default_value', frame=ef)
 
-def animate_highlighters(mats, sf, ef):
+def animate_highlighters(mats, sequence_start, offset, alength):
+    sf = sequence_start + offset
+    ef = sf + alength
     for i, mat in enumerate(mats):
         _, _, px, py = mat
         print("pxpy %d %d" % (px, py))
@@ -150,14 +154,14 @@ print("Time to create: %f" % (t2 - t1))
 
 anim_gens = np.load("/home/pboone/workspace/pm-blender/animation.npy")
 
-gf = 30
+gf = 40
 
 for i, gen in enumerate(anim_gens):
     # bpy.context.scene.frame_set(i*gf)
     j = i + 1
     mats = [(mat[0] % sx, mat[1] % sy, mat[2] % sx, mat[3] % sy) for mat in gen]
-    animate_highlighters(mats, j*gf, j*gf + 10)
-
+    animate_highlighters(mats, j*gf, 0, 10)
+    # animate_balls(mats, )
     mat_moves = dict_count([(m[0],m[1]) for m in mats])
     for (x,y), z in mat_moves.items():
-        animate_cube_height(x, y, -z, j*gf + 10, j*gf + gf)
+        animate_cube_height(x, y, -z, j*gf, 30, 10)
