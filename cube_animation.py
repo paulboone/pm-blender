@@ -74,12 +74,61 @@ def animate_highlighters(mats, sequence_start, offset, alength):
     ef = sf + alength
     for i, mat in enumerate(mats):
         _, _, px, py = mat
-        print("pxpy %d %d" % (px, py))
+        # print("pxpy %d %d" % (px, py))
         cube = bpy.data.objects["Cube_%d_%d" % (px, py)]
         ob = bpy.data.objects["hl.%03d" % i]
         ob.keyframe_insert(data_path="location", frame=sf)
-        ob.location = (px, py, cube.scale[2] * 0.9)
+        ob.location = (px, py, cube.scale[2] * 0.9 + 0.05)
         ob.keyframe_insert(data_path="location", frame=ef)
+
+def ball_location_keyframes(b, pt_start, pt_end, sequence_start, offset, alength):
+    sf = sequence_start + offset
+    ef = sf + alength
+    mf = (sf + ef) / 2
+    pt_mid = ((pt_end[0] + pt_start[0])/2, (pt_end[1] + pt_start[1])/2, 5.0)
+
+    # start point, where the ball lifts off the parent
+    b.location = pt_start
+    b.keyframe_insert(data_path="location", frame=sf)
+    b.animation_data.action.fcurves[0].keyframe_points[-1].interpolation = "BEZIER"
+    b.animation_data.action.fcurves[0].keyframe_points[-1].handle_right_type = "FREE"
+    b.animation_data.action.fcurves[0].keyframe_points[-1].handle_right = (sf + 4.0, pt_start[0])
+    b.animation_data.action.fcurves[1].keyframe_points[-1].interpolation = "BEZIER"
+    b.animation_data.action.fcurves[1].keyframe_points[-1].handle_right_type = "FREE"
+    b.animation_data.action.fcurves[1].keyframe_points[-1].handle_right = (sf + 4.0, pt_start[1])
+
+    # mid point, the apex of the ball's flight
+    b.location = pt_mid
+    b.keyframe_insert(data_path="location", frame=mf)
+    b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left_type = "VECTOR"
+    b.animation_data.action.fcurves[1].keyframe_points[-1].handle_right_type = "VECTOR"
+
+    # end point, where the ball lands on the child
+    b.location = pt_end
+    b.keyframe_insert(data_path="location", frame=ef-1)
+    print("before: ", b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left)
+    b.animation_data.action.fcurves[0].keyframe_points[-1].interpolation = "CONSTANT"
+    b.animation_data.action.fcurves[0].keyframe_points[-1].handle_left_type = "FREE"
+    b.animation_data.action.fcurves[0].keyframe_points[-1].handle_left = (ef - 1 - 4.0, pt_end[0])
+    b.animation_data.action.fcurves[1].keyframe_points[-1].interpolation = "CONSTANT"
+    b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left_type = "FREE"
+    b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left = (ef - 1 - 4.0, pt_end[1])
+    print("after: ", b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left)
+
+
+def animate_balls(mats, sequence_start, offset, alength):
+    sf = sequence_start + offset
+    ef = sf + alength
+    ball_diameter = 0.4
+
+    for i, mat in enumerate(mats):
+        x, y, px, py = mat
+        cube = bpy.data.objects["Cube_%d_%d" % (x, y)]
+        pcube = bpy.data.objects["Cube_%d_%d" % (px, py)]
+        b = bpy.data.objects["ball.%03d" % i]
+        pt_start = (px, py, pcube.scale[2] * 0.9 - ball_diameter)
+        pt_end = (x, y, cube.scale[2] * 0.9 - ball_diameter)
+        ball_location_keyframes(b, pt_start, pt_end, sequence_start, offset, alength)
 
 def delete_all_scene():
     # Clear the scene
@@ -97,6 +146,8 @@ def delete_all_scene():
 
     t3 = time.perf_counter()
     print("Time to delete materials: %f" % (t3 - t2))
+
+
 
 # pm_datacsv_path = '/home/pboone/workspace/pm-blender/bins_alldof.csv'
 # path = 'C:/Users/Paul Boone/Documents/Cover Art/bins_alldof.csv'
@@ -129,6 +180,15 @@ def reset_highlighters():
         ob.animation_data_clear()
         ob.location = (-1.0, -1.0, 0.0)
 
+def reset_balls():
+    for i in range(10):
+        ob = bpy.data.objects["ball.%03d" % i]
+        ob.animation_data_clear()
+        ob.location = (-2.0, -3.0, 0.0)
+        ob.keyframe_insert(data_path="location", frame=0)
+        ob.animation_data.action.fcurves[0].keyframe_points[-1].interpolation = "CONSTANT"
+        ob.animation_data.action.fcurves[1].keyframe_points[-1].interpolation = "CONSTANT"
+
 def remove_all_keyframes():
     t1 = time.perf_counter()
     bpy.context.scene.frame_set(1)
@@ -143,8 +203,10 @@ def remove_all_keyframes():
             bsdf_shader.keyframe_delete(data_path='default_value')
             # m.animation_data_clear()
 
+bpy.context.scene.frame_set(0)
 delete_all_scene()
 reset_highlighters()
+reset_balls()
 sx = 8
 sy = 8
 t1 = time.perf_counter()
@@ -154,14 +216,15 @@ print("Time to create: %f" % (t2 - t1))
 
 anim_gens = np.load("/home/pboone/workspace/pm-blender/animation.npy")
 
-gf = 40
+gf = 60
 
 for i, gen in enumerate(anim_gens):
     # bpy.context.scene.frame_set(i*gf)
     j = i + 1
     mats = [(mat[0] % sx, mat[1] % sy, mat[2] % sx, mat[3] % sy) for mat in gen]
     animate_highlighters(mats, j*gf, 0, 10)
-    # animate_balls(mats, )
+    if i > 0:
+        animate_balls(mats, j*gf, 10, 40)
     mat_moves = dict_count([(m[0],m[1]) for m in mats])
     for (x,y), z in mat_moves.items():
-        animate_cube_height(x, y, -z, j*gf, 30, 10)
+        animate_cube_height(x, y, -z, j*gf, 50, 10)
