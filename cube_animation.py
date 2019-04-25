@@ -2,7 +2,9 @@ import csv
 import itertools
 import math
 from random import randint
+import sys
 import time
+
 
 import bpy
 import bmesh
@@ -60,7 +62,12 @@ def animate_cube_height(x, y, z, sequence_start, offset, alength):
     if z < 0: # do a positive relative offset if a negative z passed
         rawz = math.exp(obj.scale[2]) - z
         z = math.log(rawz)
-    color = colors[min(math.floor(z + 1), 7)] + [1.0]
+
+    if z == 0:
+        color = colors[0] + [1.0]
+    else:
+        color = colors[min(math.floor(z + 1), 7)] + [1.0]
+
     obj.scale[2] = z
     obj.location[2] = 0.9*z/2
     bsdf_shader.default_value = color
@@ -85,7 +92,7 @@ def ball_location_keyframes(b, pt_start, pt_end, sequence_start, offset, alength
     sf = sequence_start + offset
     ef = sf + alength
     mf = (sf + ef) / 2
-    pt_mid = ((pt_end[0] + pt_start[0])/2, (pt_end[1] + pt_start[1])/2, 5.0)
+    pt_mid = ((pt_end[0] + pt_start[0])/2, (pt_end[1] + pt_start[1])/2, 3.0)
 
     # start point, where the ball lifts off the parent
     b.location = pt_start
@@ -106,14 +113,14 @@ def ball_location_keyframes(b, pt_start, pt_end, sequence_start, offset, alength
     # end point, where the ball lands on the child
     b.location = pt_end
     b.keyframe_insert(data_path="location", frame=ef-1)
-    print("before: ", b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left)
+    # print("before: ", b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left)
     b.animation_data.action.fcurves[0].keyframe_points[-1].interpolation = "CONSTANT"
     b.animation_data.action.fcurves[0].keyframe_points[-1].handle_left_type = "FREE"
     b.animation_data.action.fcurves[0].keyframe_points[-1].handle_left = (ef - 1 - 4.0, pt_end[0])
     b.animation_data.action.fcurves[1].keyframe_points[-1].interpolation = "CONSTANT"
     b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left_type = "FREE"
     b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left = (ef - 1 - 4.0, pt_end[1])
-    print("after: ", b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left)
+    # print("after: ", b.animation_data.action.fcurves[1].keyframe_points[-1].handle_left)
 
 
 def animate_balls(mats, sequence_start, offset, alength):
@@ -132,20 +139,20 @@ def animate_balls(mats, sequence_start, offset, alength):
 
 def delete_all_scene():
     # Clear the scene
-    t1 = time.perf_counter()
+    # t1 = time.perf_counter()
     for ob in bpy.data.collections['cubes'].objects[:]:
         bpy.data.objects.remove(ob, do_unlink=True)
 
-    t2 = time.perf_counter()
-    print("Time to delete cubes: %f" % (t2 - t1))
+    # t2 = time.perf_counter()
+    # print("Time to delete cubes: %f" % (t2 - t1))
     # deleting materials
     for m in bpy.data.materials:
         if m.name.startswith("mat1.") or m.name.startswith("mat1_"):
             # print("deleting: " + m.name)
-            bpy.data.materials.remove(m)
+            bpy.data.materials.remove(m, do_unlink=True)
 
-    t3 = time.perf_counter()
-    print("Time to delete materials: %f" % (t3 - t2))
+    # t3 = time.perf_counter()
+    # print("Time to delete materials: %f" % (t3 - t2))
 
 
 
@@ -201,30 +208,59 @@ def remove_all_keyframes():
         if m.name.startswith("mat1.") or m.name.startswith("mat1_"):
             bsdf_shader = m.node_tree.nodes.get("Principled BSDF").inputs[0]
             bsdf_shader.keyframe_delete(data_path='default_value')
-            # m.animation_data_clear()
+            m.animation_data_clear()
 
-bpy.context.scene.frame_set(0)
-delete_all_scene()
-reset_highlighters()
-reset_balls()
-sx = 8
-sy = 8
-t1 = time.perf_counter()
-init_scene(sx, sy)
-t2 = time.perf_counter()
-print("Time to create: %f" % (t2 - t1))
+func = "reset-zero"
+delete_scene = False
+# delete_scene = True
 
-anim_gens = np.load("/home/pboone/workspace/pm-blender/animation.npy")
+if delete_scene:
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.scene.frame_set(0)
+    delete_all_scene()
+    reset_highlighters()
+    # reset_balls()
 
-gf = 60
+if func=="reset-zero":
+    mats = [(0.0, 0.0, 39.0, 39.0) for i in range(10)]
+    animate_highlighters(mats, 0, 0, 30)
+    for i in range(40):
+        for j in range(40):
+            animate_cube_height(i, j, 0.0, 0, 0, 30)
+elif func=="load-scene":
+    sx = 40
+    sy = 40
+    # sx = 8
+    # sy = 8
+    # t1 = time.perf_counter()
+    init_scene(sx, sy)
+    # t2 = time.perf_counter()
+    # print("Time to create: %f" % (t2 - t1))
 
-for i, gen in enumerate(anim_gens):
-    # bpy.context.scene.frame_set(i*gf)
-    j = i + 1
-    mats = [(mat[0] % sx, mat[1] % sy, mat[2] % sx, mat[3] % sy) for mat in gen]
-    animate_highlighters(mats, j*gf, 0, 10)
-    if i > 0:
-        animate_balls(mats, j*gf, 10, 40)
-    mat_moves = dict_count([(m[0],m[1]) for m in mats])
-    for (x,y), z in mat_moves.items():
-        animate_cube_height(x, y, -z, j*gf, 50, 10)
+    # anim_gens = np.load("/home/pboone/workspace/pm-blender/animation.npy")
+    anim_gens = np.load("C:/Users/Paul Boone/Documents/pm-blender/animation.npy")
+
+    gf = 20
+    if gf == 60:
+        for i, gen in enumerate(anim_gens):
+            if i > 400:
+                break
+            # bpy.context.scene.frame_set(i*gf)
+            j = i + 1
+            mats = [(mat[0] % sx, mat[1] % sy, mat[2] % sx, mat[3] % sy) for mat in gen]
+            animate_highlighters(mats, j*gf, 0, 10)
+            if i > 0:
+                animate_balls(mats, j*gf, 10, 40)
+            mat_moves = dict_count([(m[0],m[1]) for m in mats])
+            for (x,y), z in mat_moves.items():
+                animate_cube_height(x, y, -z, j*gf, 50, 10)
+    else:
+        for i, gen in enumerate(anim_gens):
+            if i > 400:
+                break
+            j = i + 1
+            mats = [(mat[0] % sx, mat[1] % sy, mat[2] % sx, mat[3] % sy) for mat in gen]
+            animate_highlighters(mats, j*gf, 0, 10)
+            mat_moves = dict_count([(m[0],m[1]) for m in mats])
+            for (x,y), z in mat_moves.items():
+                animate_cube_height(x, y, -z, j*gf, 10, 10)
