@@ -41,8 +41,8 @@ def create_materials(points):
         p.base_color = cm(normalize_eps(eps))[0:3]
 
 def add_ball(row):
-    mesh = bpy.data.meshes.new("Ball")
-    ball = bpy.data.objects.new("Ball", mesh)
+    mesh = bpy.data.meshes.new("Ball.%s" % row.name)
+    ball = bpy.data.objects.new("Ball.%s" % row.name, mesh)
     bpy.context.collection.objects.link(ball)
     ball.select_set(state=True)
     bm = bmesh.new()
@@ -54,10 +54,33 @@ def add_ball(row):
     ball.data.materials.append(bpy.data.materials[materialname(row.sigma, row.epsilon)])
     ball.select_set(state=False)
 
+def select_ball(i):
+    bpy.context.scene.objects["Ball.%s" % i].select_set(True)
+
+def extend_uc(obj, uc, num):
+    arrx = obj.modifiers.new("arrx", "ARRAY")
+    arrx.relative_offset_displace = (uc[0], 0.0, 0.0)
+    arrx.count = num
+    arry = obj.modifiers.new("arry", "ARRAY")
+    arry.relative_offset_displace = (0.0, uc[1], 0.0)
+    arry.count = num
+    arrz = obj.modifiers.new("arrz", "ARRAY")
+    arrz.relative_offset_displace = (0.0, 0.0, uc[2])
+    arrz.count = num
+    return arrx, arry, arrz
+
+
 csv_path = "/Users/pboone/workspace/pm-blender/sample.csv"
 uc, points = get_uccoords_atoms(csv_path)
 
 points.apply(add_ball, axis=1)
+
+bpy.ops.object.select_all(action='DESELECT')
+for i in points.index:
+    select_ball(i)
+bpy.ops.object.join()
+
+extend_uc(bpy.context.active_object, uc, 5)
 
 # mname =
 # bpy.data.materials.new(mname)
